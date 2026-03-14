@@ -1,0 +1,215 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Hot Seat Game Manager</title>
+<style>
+    body {
+        font-family: Arial, sans-serif;
+        background-color: #f0f8ff;
+        color: #333;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        margin: 0;
+        padding: 20px;
+    }
+    h1 { margin-bottom: 10px; }
+    .container {
+        max-width: 500px;
+        width: 100%;
+        background-color: #ffffff;
+        border-radius: 10px;
+        padding: 20px;
+        box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+        margin-bottom: 20px;
+    }
+    input, textarea, button, select {
+        width: 100%;
+        margin-top: 10px;
+        padding: 10px;
+        font-size: 16px;
+        border-radius: 5px;
+        border: 1px solid #ccc;
+    }
+    button { cursor: pointer; background-color: #4CAF50; color: white; border: none; margin-top: 10px; }
+    button:hover { background-color: #45a049; }
+    .game-screen { display: none; text-align: center; margin-top: 20px; }
+    .word-box { font-size: 36px; font-weight: bold; margin: 20px 0; }
+    .timer { font-size: 24px; font-weight: bold; margin-top: 10px; }
+    .timer-buttons button { width: 48%; margin: 5px 1%; }
+</style>
+</head>
+<body>
+
+<div class="container" id="setupScreen">
+    <h1>Hot Seat Setup</h1>
+    
+    <label for="savedTopics">Saved Topics:</label>
+    <select id="savedTopics">
+        <option value="">-- Select a topic --</option>
+    </select>
+    <button id="deleteTopic">Delete Selected Topic</button>
+
+    <label for="topic">Enter New Topic:</label>
+    <input type="text" id="topic" placeholder="e.g., Animals, Countries">
+
+    <label for="words">Enter Words (one per line):</label>
+    <textarea id="words" rows="10" placeholder="Example: Lion&#10;Elephant&#10;Giraffe"></textarea>
+
+    <button id="saveTopic">Save Topic</button>
+    <button id="startGame">Play Topic</button>
+</div>
+
+<div class="container game-screen" id="gameScreen">
+    <h1 id="displayTopic"></h1>
+    <div class="word-box" id="currentWord"></div>
+
+    <div class="timer" id="timerDisplay">01:00</div>
+    <div class="timer-buttons">
+        <button id="startTimer">Start Timer</button>
+        <button id="stopTimer">Stop Timer</button>
+    </div>
+
+    <button id="nextWord">Next Word</button>
+    <button id="backToSetup">Back to Setup</button>
+</div>
+
+<script>
+const setupScreen = document.getElementById('setupScreen');
+const gameScreen = document.getElementById('gameScreen');
+const topicInput = document.getElementById('topic');
+const wordsInput = document.getElementById('words');
+const startButton = document.getElementById('startGame');
+const saveButton = document.getElementById('saveTopic');
+const deleteButton = document.getElementById('deleteTopic');
+const savedTopicsSelect = document.getElementById('savedTopics');
+
+const displayTopic = document.getElementById('displayTopic');
+const currentWord = document.getElementById('currentWord');
+const nextButton = document.getElementById('nextWord');
+const backButton = document.getElementById('backToSetup');
+const startTimerBtn = document.getElementById('startTimer');
+const stopTimerBtn = document.getElementById('stopTimer');
+const timerDisplay = document.getElementById('timerDisplay');
+
+let words = [];
+let shuffledWords = [];
+let currentIndex = 0;
+let currentTopic = "";
+let timer;
+let timeLeft = 60;
+
+// --- Topic Management ---
+function loadSavedTopics() {
+    const topics = JSON.parse(localStorage.getItem('hotseatTopics') || '{}');
+    savedTopicsSelect.innerHTML = '<option value="">-- Select a topic --</option>';
+    for (let t in topics) {
+        const option = document.createElement('option');
+        option.value = t;
+        option.textContent = t;
+        savedTopicsSelect.appendChild(option);
+    }
+}
+
+function saveTopic() {
+    const newTopic = topicInput.value.trim();
+    const newWords = wordsInput.value.trim().split('\n').map(w => w.trim()).filter(w => w);
+    if (!newTopic || newWords.length === 0) { alert("Enter topic and words"); return; }
+    
+    const topics = JSON.parse(localStorage.getItem('hotseatTopics') || '{}');
+    topics[newTopic] = newWords;
+    localStorage.setItem('hotseatTopics', JSON.stringify(topics));
+    loadSavedTopics();
+    alert("Topic saved!");
+}
+
+function deleteTopic() {
+    const selected = savedTopicsSelect.value;
+    if (!selected) { alert("Select a topic to delete"); return; }
+    const topics = JSON.parse(localStorage.getItem('hotseatTopics') || '{}');
+    delete topics[selected];
+    localStorage.setItem('hotseatTopics', JSON.stringify(topics));
+    loadSavedTopics();
+    alert("Topic deleted");
+}
+
+// --- Game Functions ---
+function shuffleArray(array) {
+    let arr = array.slice();
+    for (let i = arr.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [arr[i], arr[j]] = [arr[j], arr[i]];
+    }
+    return arr;
+}
+
+function showWord() {
+    if (currentIndex >= shuffledWords.length) {
+        alert("You've gone through all the words!");
+        currentIndex = 0;
+        shuffledWords = shuffleArray(words);
+    }
+    currentWord.textContent = shuffledWords[currentIndex];
+    resetTimer();
+}
+
+function resetTimer() {
+    clearInterval(timer);
+    timeLeft = 60;
+    updateTimerDisplay();
+}
+
+function updateTimerDisplay() {
+    let minutes = String(Math.floor(timeLeft / 60)).padStart(2,'0');
+    let seconds = String(timeLeft % 60).padStart(2,'0');
+    timerDisplay.textContent = `${minutes}:${seconds}`;
+}
+
+function startTimer() {
+    clearInterval(timer);
+    timer = setInterval(() => {
+        timeLeft--;
+        updateTimerDisplay();
+        if (timeLeft <= 0) { clearInterval(timer); alert("Time's up!"); }
+    }, 1000);
+}
+
+// --- Event Listeners ---
+loadSavedTopics();
+
+saveButton.addEventListener('click', saveTopic);
+deleteButton.addEventListener('click', deleteTopic);
+
+savedTopicsSelect.addEventListener('change', () => {
+    const selected = savedTopicsSelect.value;
+    if (!selected) { topicInput.value = ''; wordsInput.value = ''; return; }
+    const topics = JSON.parse(localStorage.getItem('hotseatTopics') || '{}');
+    topicInput.value = selected;
+    wordsInput.value = topics[selected].join('\n');
+});
+
+startButton.addEventListener('click', () => {
+    currentTopic = topicInput.value.trim();
+    if (!currentTopic) { alert("Enter a topic"); return; }
+    words = wordsInput.value.trim().split('\n').map(w => w.trim()).filter(w => w);
+    if (words.length === 0) { alert("Enter words"); return; }
+
+    shuffledWords = shuffleArray(words);
+    currentIndex = 0;
+    displayTopic.textContent = currentTopic;
+    showWord();
+    setupScreen.style.display = 'none';
+    gameScreen.style.display = 'block';
+});
+
+nextButton.addEventListener('click', () => { currentIndex++; showWord(); });
+backButton.addEventListener('click', () => { setupScreen.style.display='block'; gameScreen.style.display='none'; clearInterval(timer); });
+startTimerBtn.addEventListener('click', startTimer);
+stopTimerBtn.addEventListener('click', () => clearInterval(timer));
+</script>
+
+</body>
+</html>
+
